@@ -1,41 +1,53 @@
-const axios = require("axios");
-const moment = require("moment-timezone");
+const config = {
+    aliases: ["pf", "setprefix", "setpf"],
+    permissions: [1, 2],
+    description: "Set prefix for group",
+    usage: "<prefix>",
+    cooldown: 5,
+    credits: "XaviaTeam"
+}
 
-module.exports.config = {
-  name: "prefix",
-  version: "2.0.0",
-  hasPermission: 0,
-  credits: "DongDev",
-  description: "prefix bot",
-  commandCategory: "Hệ thống",
-  usages: "[]",
-  cooldowns: 0
-};
+const langData = {
+    "en_US": {
+        "prefix.get": "Default prefix: {default}\nCurrent prefix: {current}",
+        "prefix.set": "Prefix has been set to {newPrefix}",
+        "prefix.tooLong": "Prefix must be less than 5 characters",
+        "notGroup": "This command only works in group",
+        "threadDataNotExists": "Thread data not exists"
+    },
+    "vi_VN": {
+        "prefix.get": "Prefix mặc định: {default}\nPrefix hiện tại: {current}",
+        "prefix.set": "Prefix đã được đặt thành {newPrefix}",
+        "prefix.tooLong": "Prefix phải ít hơn 5 ký tự",
+        "notGroup": "Lệnh này chỉ hoạt động trong nhóm",
+        "threadDataNotExists": "Dữ liệu nhóm không tồn tại"
+    }
+}
 
-module.exports.handleEvent = async function ({ api, event, client }) {
-  const { threadID, body } = event;
-  if (!body) return;
+async function onCall({ message, args, data, getLang, prefix }) {
+    const { isGroup, threadID } = message;
+    const { thread } = data;
 
-  const { PREFIX } = global.config;
-  const gio = moment.tz("Asia/Ho_Chi_Minh").format("HH:mm:ss || DD/MM/YYYY");
+    if (!isGroup) return message.reply(getLang("notGroup"));
+    if (!thread?.info?.threadID) return message.reply(getLang("threadDataNotExists"));
+    if (!thread.data) thread.data = {};
 
-  let threadSetting = global.data.threadData.get(threadID) || {};
-  let prefix = threadSetting.PREFIX || PREFIX;
+    if (!args[0]) return message.reply(getLang("prefix.get", {
+        default: global.config.PREFIX,
+        current: prefix
+    }));
 
-  const lowerBody = body.toLowerCase();
+    const newPrefix = args[0];
+    if (newPrefix.length > 5) return message.reply(getLang("prefix.tooLong"));
 
-  if (
-    lowerBody === "prefix" ||
-    lowerBody === "prefix bot là gì" ||
-    lowerBody === "quên prefix r" ||
-    lowerBody === "dùng sao"
-  ) {
-    api.sendMessage(
-      `✏️ Prefix của nhóm: ${prefix}\n📎 Prefix hệ thống: ${PREFIX}`,
-      threadID,
-      event.messageID
-    );
-  }
-};
+    await global.controllers.Threads.updateData(threadID, { prefix: newPrefix });
+    global.api.changeNickname(`[ ${newPrefix} ] ${global.config.NAME || "Xavia"}`, threadID, global.botID, (_) => {
+        message.reply(getLang("prefix.set", { newPrefix }));
+    });
+}
 
-module.exports.run = async function () {};
+export default {
+    config,
+    langData,
+    onCall
+}
